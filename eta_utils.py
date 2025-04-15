@@ -1,6 +1,8 @@
 import numpy as np
 import time
 
+# Formatting functions
+
 
 def time_format(secs):
     if np.abs(secs) < 60.:
@@ -26,6 +28,9 @@ def time_format_hhmmss(secs):
 
 def iters_per_second_format(x):
     return f"{x:.2f} it/s" if x > 1. else f"{time_format(1. / x)}/iter"
+
+
+# Classes
 
 
 class ETAUpdate:
