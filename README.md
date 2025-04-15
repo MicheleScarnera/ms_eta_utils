@@ -4,6 +4,7 @@ A simple library to quickly have an ETA meter, for long-running loops.
 
 For example, the loop:
 ```
+N = 1000
 eta = SimpleAverageETA(total_iters=N)
 
 for n in range(N):
