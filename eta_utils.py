@@ -67,7 +67,15 @@ class ETAUpdates:
 
 
 class BaseETA:
+    """
+    The base class for ETA calculators. When making a custom ETA class, at least get_iters_per_second must be implemented.
+    The function get_eta could also be worth re-implementing. The base version just calls get_iters_per_second, which works for most cases.
+    """
     def __init__(self, total_iters):
+        """
+
+        :param total_iters: The total number of iterations
+        """
         self.current_iter = 0
         self.total_iters = total_iters
 
@@ -95,6 +103,16 @@ class BaseETA:
         self.eta = self.get_eta()
 
     def text(self, percent_digits=1, bar_length=10, bar_filled_char='=', bar_unfilled_char=' '):
+        """
+        Creates the text that's shown in the console through show_progress.
+        Doesn't come with return characters or anything else to make the text "live".
+
+        :param percent_digits: How many decimal places to show for the percentage.
+        :param bar_length: How long the inner part of the bar is.
+        :param bar_filled_char: The character to indicate the "filled" part of the bar.
+        :param bar_unfilled_char: The character to indicate the "unfilled" part of the bar.
+        :return: str
+        """
         percent = self.current_iter / self.total_iters
 
         num_filled_ticks = int(bar_length * percent)
@@ -104,21 +122,42 @@ class BaseETA:
         return f"{loading_bar} {self.current_iter}/{self.total_iters} ({('{' + f':.{percent_digits}%' + '}').format(percent)}) {iters_per_second_format(self.iters_per_second)} ETA {time_format(self.eta)}"
 
     def show_progress(self):
+        """
+        Prints text as a "live" console output. Must be called after update at every loop iteration.
+        """
         print(f"\r{self.text()}", end="" if self.current_iter < self.total_iters else "\n")
 
     def get_iters_per_second(self):
+        """
+        Calculates iterations per second so far. After calling update, this is stored in the self.iters_per_second variable.
+
+        :return: float
+        """
         raise NotImplementedError("get_iters_per_second has not been implemented")
 
     def get_eta(self):
+        """
+        Calculates ETA so far. After calling update, this is stored in the self.eta variable.
+
+        :return: float
+        """
         return (self.total_iters - self.current_iter) / self.get_iters_per_second()
 
 
 class SimpleAverageETA(BaseETA):
+    """
+    An ETA class that computes iterations per second with a simple arithmetic average.
+    """
     def get_iters_per_second(self):
         return self.current_iter / self.total_time_taken
 
 
 class ExponentiallyWeightedMovingAverageETA(BaseETA):
+    """
+    An ETA class that computes iterations per second with an Exponentially Weighted Moving Average.
+
+    Given its discrete nature, it makes more sense to compute the average seconds per iteration first, and then inverting it.
+    """
     def __init__(self, total_iters, alpha=0.05, iters_per_second_start_value=1.):
         super().__init__(total_iters=total_iters)
 
@@ -135,8 +174,12 @@ class ExponentiallyWeightedMovingAverageETA(BaseETA):
 
         I = len(times_taken_clean)
 
+        # weighted average of time per iteration
         weights = [self.alpha * (1. - self.alpha) ** i for i in range(I, -1, -1)]
+
         average_time_per_iter = (sum([t * w for t, w in zip(
             [self.iters_per_second_start_value, *times_taken_clean],
             weights)]) / sum(weights))
+
+        # return the reciprocal
         return 1. / average_time_per_iter
