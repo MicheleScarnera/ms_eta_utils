@@ -34,6 +34,9 @@ def iters_per_second_format(x):
 
 
 class ETAUpdate:
+    """
+    A struct to store (batched) iterations.
+    """
     def __init__(self, time_taken, batch):
         self.time_taken = time_taken
         self.batch = batch
@@ -44,6 +47,9 @@ class ETAUpdate:
 
 
 class ETAUpdates:
+    """
+    An iterable that stores ETAUpdate classes.
+    """
     raw_list: list[ETAUpdate]
 
     def __init__(self):
@@ -76,6 +82,12 @@ class BaseETA:
 
         :param total_iters: The total number of iterations
         """
+        if int(total_iters) != total_iters:
+            raise ValueError(f"total_iters could not be seen as the same as an integer (value given: {total_iters})")
+
+        if total_iters <= 0:
+            raise ValueError("total_iters must be strictly positive and an integer")
+
         self.current_iter = 0
         self.total_iters = total_iters
 
@@ -131,6 +143,8 @@ class BaseETA:
         """
         Calculates iterations per second so far. After calling update, this is stored in the self.iters_per_second variable.
 
+        Custom ETA classes must implement this, and optionally get_eta.
+
         :return: float
         """
         raise NotImplementedError("get_iters_per_second has not been implemented")
@@ -138,6 +152,8 @@ class BaseETA:
     def get_eta(self):
         """
         Calculates ETA so far. After calling update, this is stored in the self.eta variable.
+
+        This function has the default behavior "iterations left / iterations per second", and could be re-implemented if desired.
 
         :return: float
         """
@@ -159,7 +175,19 @@ class ExponentiallyWeightedMovingAverageETA(BaseETA):
     Given its discrete nature, it makes more sense to compute the average seconds per iteration first, and then inverting it.
     """
     def __init__(self, total_iters, alpha=0.05, iters_per_second_start_value=1.):
+        """
+
+        :param total_iters: The total number of iterations.
+        :param alpha: Parameter between 0 and 1 that determines by how much to weigh recent data. The higher, the more recent iterations influence the estimator.
+        :param iters_per_second_start_value: The starting value.
+        """
         super().__init__(total_iters=total_iters)
+
+        if alpha < 0 or alpha > 1:
+            raise ValueError("alpha must be between 0 and 1")
+
+        if iters_per_second_start_value <= 0:
+            raise ValueError("iters_per_second_start_value must be positive")
 
         self.alpha = alpha
         self.iters_per_second_start_value = iters_per_second_start_value

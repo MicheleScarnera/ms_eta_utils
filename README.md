@@ -21,6 +21,7 @@ Would show this in the console:
 ```
 
 Comes with `SimpleAverageETA` and `ExponentiallyWeightedMovingAverageETA` classes, with the base class `BaseETA`.
+Batched iterations are implemented, and the batch size of one iteration can be specified with the `batch` parameter in `eta.update()`.
 
 Since this is very simple code, you can just copy the `eta_utils.py` file right into your project.
 
