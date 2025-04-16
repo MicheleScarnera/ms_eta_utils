@@ -45,31 +45,40 @@ class ETAUpdate:
         for v in (self.time_taken, self.batch):
             yield v
 
+    def __repr__(self):
+        return f"Batch of {self.batch} of total time taken {time_format(self.time_taken)}"
+
 
 class ETAUpdates:
     """
     An iterable that stores ETAUpdate classes.
     """
-    raw_list: list[ETAUpdate]
+    _raw_list: list[ETAUpdate]
 
     def __init__(self):
-        self.raw_list = []
+        self._raw_list = []
 
     def __iter__(self):
-        for v in self.raw_list:
+        for v in self._raw_list:
             yield v
 
+    def __getitem__(self, item):
+        return self._raw_list[item]
+
+    def __len__(self):
+        return len(self._raw_list)
+
     def append(self, eta_update):
-        self.raw_list.append(eta_update)
+        self._raw_list.append(eta_update)
 
     def times_taken(self):
-        return np.array([u.time_taken for u in self.raw_list])
+        return np.array([u.time_taken for u in self._raw_list])
 
     def batches(self):
-        return np.array([u.batch for u in self.raw_list])
+        return np.array([u.batch for u in self._raw_list])
 
     def numpy(self):
-        return np.array((tuple(eta_update) for eta_update in self.raw_list))
+        return np.array((tuple(eta_update) for eta_update in self._raw_list))
 
 
 class BaseETA:
@@ -174,40 +183,47 @@ class ExponentiallyWeightedMovingAverageETA(BaseETA):
 
     Given its discrete nature, it makes more sense to compute the average seconds per iteration first, and then inverting it.
     """
-    def __init__(self, total_iters, alpha=0.05, iters_per_second_start_value=1.):
+    def __init__(self, total_iters, alpha=0.05, second_per_iter_start_value=1.):
         """
 
         :param total_iters: The total number of iterations.
         :param alpha: Parameter between 0 and 1 that determines by how much to weigh recent data. The higher, the more recent iterations influence the estimator.
-        :param iters_per_second_start_value: The starting value.
+        :param second_per_iter_start_value: The starting value.
         """
         super().__init__(total_iters=total_iters)
 
         if alpha < 0 or alpha > 1:
             raise ValueError("alpha must be between 0 and 1")
 
-        if iters_per_second_start_value <= 0:
+        if second_per_iter_start_value <= 0:
             raise ValueError("iters_per_second_start_value must be positive")
 
         self.alpha = alpha
-        self.iters_per_second_start_value = iters_per_second_start_value
+        self.seconds_per_iter_start_value = second_per_iter_start_value
+
+        self.seconds_per_iter_history = [self.seconds_per_iter_start_value]
+
+        self.times_taken_clean = []
+        self.times_taken_last_update_length = 0
 
     def get_iters_per_second(self):
         # clean the eta updates
         # treat a batched update as each element taking the same, average time
-        times_taken_clean = []
-        for update in self.updates:
+
+        I = len(self.updates)
+
+        for i in list(range(self.times_taken_last_update_length, I)):
+            self.times_taken_last_update_length += 1
+
+            update = self.updates[i]
+
+            # treat a batched update as one update happening in the same, average time
+            average_time_taken = update.time_taken / update.batch
             for _ in range(update.batch):
-                times_taken_clean.append(update.time_taken / update.batch)
+                new_estimation = (1 - self.alpha) * self.seconds_per_iter_history[-1] + self.alpha * average_time_taken
 
-        I = len(times_taken_clean)
-
-        # weighted average of time per iteration
-        weights = [self.alpha * (1. - self.alpha) ** i for i in range(I, -1, -1)]
-
-        average_time_per_iter = (sum([t * w for t, w in zip(
-            [self.iters_per_second_start_value, *times_taken_clean],
-            weights)]) / sum(weights))
+                self.times_taken_clean.append(average_time_taken)
+                self.seconds_per_iter_history.append(new_estimation)
 
         # return the reciprocal
-        return 1. / average_time_per_iter
+        return 1. / self.seconds_per_iter_history[-1]
